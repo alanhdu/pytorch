@@ -8,6 +8,7 @@
 
 #include <torch/csrc/THP_export.h>
 #include <torch/csrc/utils/auto_gil.h>
+#include <torch/csrc/jit/script/jit_exception.h>
 #include <torch/csrc/WindowsTorchApiMacro.h>
 #include <c10/util/StringUtil.h>
 #include <c10/util/Exception.h>
@@ -78,6 +79,12 @@
       e.set_error(); \
       throw;                                                 \
     }                                                                \
+    catch (torch::jit::JITException & e) {\
+      /* Special case for JITException that are explicitely unpacked by pybind */ \
+      /* Set a temporary python error to be detectable by warning code */ \
+      PyErr_SetString(PyExc_RuntimeError, "JITException");              \
+      throw; \
+    } \
     CATCH_TH_ERRORS(throw)                                          \
   }                                                                  \
   catch (py::error_already_set & e) {                                       \
@@ -88,6 +95,12 @@
     /* Repack already stored error */ \
     throw py::error_already_set();                                                 \
   }                                                                \
+  catch (torch::jit::JITException & e) {\
+    /* Special case for JITException that are explicitely unpacked by pybind */ \
+    /* Clear the temporary error message we used */ \
+    PyErr_Clear(); \
+    throw; \
+  } \
   CATCH_TH_ERRORS(throw py::error_already_set())
 
 #define END_HANDLE_TH_ERRORS_RET(retval)                             \
